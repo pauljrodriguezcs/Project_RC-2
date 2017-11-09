@@ -16,22 +16,14 @@
 #include "croutine.h" 
 #include "bit.h"
 
-
-void pwm_init()
-{
-	// initialize TCCR0 as per requirement, say as follows
-	TCCR3A = (1<<COM3A0);
-	TCCR3B = (1 << WGM32) | (1 << CS31) | (1 << CS30);
-	OCR3A = (short)(1250);
-	
-	// make sure to make OC0 pin (pin PB3 for atmega32) as output pin
-}
-
 unsigned char right = 0;	// A0
-unsigned char center = 0;	// A1
+//unsigned char center = 0;	// A1
 unsigned char left = 0;		// A2
-
-uint8_t duty = 19;
+unsigned char max_servo = 0;
+unsigned char min_servo = 0;
+unsigned char servo_counter = 0;
+unsigned char needs_centering  = 0;
+unsigned char timeline = 1;	// left 0, center = 1, right = 2
 
 enum BUTTONState {release,push} button_state;
 
@@ -44,9 +36,7 @@ void BUTTON_Tick(){
 	switch(button_state){
 		case release:
 			break;
-			
 		case push:
-			
 			break;
 			
 		default:
@@ -55,53 +45,111 @@ void BUTTON_Tick(){
 	//Transitions
 	switch(button_state){
 		case release:
-			if(GetBit(~PINA,0) && !GetBit(~PINA,1) && !GetBit(~PINA,2)){
-				right = 1;
-				center = 0;
-				left = 0;
-				duty = 26;
-				button_state = push;
+			if(GetBit(~PINA,0) && !GetBit(~PINA,2)){
+				if(timeline < 2){
+					right = 1;
+					left = 0;
+					max_servo = 2;
+					++timeline;
+										
+					if(timeline != 1){
+						needs_centering = 1;
+					}
+					
+					else{
+						needs_centering = 0;
+					}
+					
+					button_state = push;
+				}
 			}
 			
-			else if(!GetBit(~PINA,0) && GetBit(~PINA,1) && !GetBit(~PINA,2)){
-				right = 0;
-				center = 1;
-				left = 0;
-				duty = 19;
-				button_state = push;
-			}
-			
-			else if(!GetBit(~PINA,0) && !GetBit(~PINA,1) && GetBit(~PINA,2)){
-				right = 0;
-				center = 0;
-				left = 1;
-				duty = 13;
-				button_state = push;
+			else if(!GetBit(~PINA,0) && GetBit(~PINA,2)){
+				if(0 < timeline){
+					right = 0;
+					left = 1;
+					max_servo = 1;
+					--timeline;
+					
+					if(timeline != 1){
+						needs_centering = 1;
+					}
+					
+					else{
+						needs_centering = 0;
+					}
+					button_state = push;
+				}
 			}
 			
 			else{
-				right = 0;
-				center = 1;
-				left = 0;
-				duty = 13;
+				if(timeline < 1){
+					right = 1;
+					left = 0;
+					max_servo = 2;
+					++timeline;
+					needs_centering = 1;
+				}
+				
+				else if(1 < timeline){
+					right = 0;
+					left = 1;
+					max_servo = 1;
+					--timeline;
+					needs_centering = 1;
+				}
+				
+				else{
+					right = 0;
+					left = 0;
+					max_servo = 0;
+					needs_centering = 0;
+				}
+				
 				button_state = release;
 			}
 			
 			break;
 		
 		case push:
-			if(GetBit(~PINA,0) && !GetBit(~PINA,1) && !GetBit(~PINA,2)){
+			if(GetBit(~PINA,0) && !GetBit(~PINA,2)){
+				if(timeline < 2){
+					right = 1;
+					left = 0;
+					max_servo = 2;
+					++timeline;
+					
+					if(timeline != 1){
+						needs_centering = 1;
+					}
+					
+					else{
+						needs_centering = 0;
+					}
+				}
+				
 				button_state = push;
 			}
-			
-			else if(!GetBit(~PINA,0) && GetBit(~PINA,1) && !GetBit(~PINA,2)){
+	
+			else if(!GetBit(~PINA,0) && GetBit(~PINA,2)){
+				if(0 < timeline){
+					right = 0;
+					left = 1;
+					max_servo = 1;
+					--timeline;
+					
+					if(timeline != 1){
+						needs_centering = 1;
+					}
+					
+					else{
+						needs_centering = 0;
+					}
+					
+				}
 				button_state = push;
 			}
-			
-			else if(!GetBit(~PINA,0) && !GetBit(~PINA,1) && GetBit(~PINA,2)){
-				button_state = push;
-			}
-			
+		
 			else{
 				button_state = release;
 			}
@@ -119,7 +167,7 @@ void BUTTONSecTask()
    for(;;) 
    { 	
 	BUTTON_Tick();
-	vTaskDelay(10); 
+	vTaskDelay(300); 
    } 
 }
 
@@ -128,56 +176,84 @@ void BUTTONSecPulse(unsigned portBASE_TYPE Priority)
 	xTaskCreate(BUTTONSecTask, (signed portCHAR *)"BUTTONSecTask", configMINIMAL_STACK_SIZE, NULL, Priority, NULL );
 }	
  
- enum SERVOState {drive} servo_state;
+ enum SERVOState {servo_init,drive_low, drive_high} servo_state;
 
  void SERVO_Init(){
-	 servo_state = drive;
+	 servo_state = servo_init;
  }
 
- void SERVO_Tick(){
-	 //Actions
-	 switch(servo_state){
-		 case drive:
-			if(right){
-				//OCR0A = 1250;
-				PORTB = 0x40;
+void SERVO_Tick(){
+	//Actions
+	switch(servo_state){
+		case servo_init:
+			break;
+		  
+		case drive_high:
+			break;
+
+		case drive_low:
+			break;
+		  
+		default:
+			break;
+	}
+	
+	//Transitions
+	switch(servo_state){
+		case servo_init:
+			if(left || right){
+				servo_state = drive_high;
+				servo_counter = 0;
+				min_servo = 20 - max_servo;
 				PORTD = 0x01;
 			}
-			
-			else if(center){
-				//OCR0A = 1250;
-				// PORTB = 0x00;
-				PORTD = 0x02;
-			}
-			
-			else if(left){
-				//OCR0A = duty;
-				PORTB = 0x40;
-				PORTD = 0x04;
-			}
-			
+		  
 			else{
-				//OCR0A = duty;
-				// PORTB = 0x00;
 				PORTD = 0x00;
+				servo_state = servo_init;
 			}
-		 
 			break;
-		 
-		 default:
-		 
+		case drive_high:
+			if((servo_counter < max_servo) && (left || right)){
+				 ++servo_counter;
+				servo_state = drive_high;
+			}
+		  
+			else if(!(servo_counter < max_servo) && (left || right)){
+				servo_counter = 0;
+				PORTD = 0x00;
+				servo_state = drive_low;
+			}
+		  
+			else{
+				 left = 0;
+				right = 0;
+				PORTD = 0x00;
+				servo_state = servo_init;
+			}
 			break;
-	 }
-	 //Transitions
-	 switch(servo_state){
-		 case drive:
-			servo_state = drive;
+		  
+		case drive_low:
+			if((servo_counter < min_servo) && (left || right)){
+				++servo_counter;
+				servo_state = drive_low;
+			}
+		  
+			 else{
+				left = 0;
+				right = 0;
+				PORTD = 0x00;
+				servo_state = servo_init;
+			}
+		  
 			break;
-		 default:
-			servo_state = drive;
+		  
+		default:
+			servo_state = servo_init;
 			break;
-	 }
- }
+	  }
+  }
+
 
  void SERVOSecTask()
  {
@@ -197,10 +273,8 @@ void BUTTONSecPulse(unsigned portBASE_TYPE Priority)
 int main(void) 
 { 
    DDRA = 0x00; PORTA = 0xFF;
-   DDRB = 0xFF; PORTB = 0x00;
    DDRD = 0xFF; PORTD = 0x00;
    
-   pwm_init();
    //Start Tasks  
    BUTTONSecPulse(1);
    SERVOSecPulse(1);
