@@ -16,55 +16,63 @@
 #include "croutine.h" 
 #include "bit.h"
 
+//code modified from http://maxembedded.com/2011/06/the-adc-of-the-avr/----------------------------
+void adc_init()
+{
+	// AREF = AVcc
+	ADMUX = (1<<REFS0);
+	
+	// ADC Enable and prescaler of 128
+	// 16000000/128 = 125000
+	ADCSRA = (1<<ADEN)|(1<<ADPS2)|(1<<ADPS1)|(1<<ADPS0);
+}
+
+uint16_t adc_read(uint8_t ch)
+{
+	// select the corresponding channel 0~7
+	// ANDing with ’7? will always keep the value
+	// of ‘ch’ between 0 and 7
+	ch &= 0b00000111;  // AND operation with 7
+	ADMUX = (ADMUX & 0xF8)|ch; // clears the bottom 3 bits before ORing
+	
+	// start single convertion
+	// write ’1? to ADSC
+	ADCSRA |= (1<<ADSC);
+	
+	// wait for conversion to complete
+	// ADSC becomes ’0? again
+	// till then, run loop continuously
+	while(ADCSRA & (1<<ADSC));
+	
+	return (ADC);
+}
+//end of code modified from http://maxembedded.com/2011/06/the-adc-of-the-avr/---------------------
+
+
 unsigned char right = 0;	// A0
-//unsigned char center = 0;	// A1
 unsigned char left = 0;		// A2
 unsigned char max_servo = 0;
 unsigned char min_servo = 0;
 unsigned char servo_counter = 0;
 unsigned char needs_centering  = 0;
 unsigned char timeline = 1;	// left 0, center = 1, right = 2
+unsigned short steering = 0;
 
-enum BUTTONState {release,push} button_state;
+enum STEERINGState {steering_read} steering_state;
 
-void BUTTON_Init(){
-	button_state = release;
+void STEERING_Init(){
+	steering_state = steering_read;
 }
 
-void BUTTON_Tick(){
+void STEERING_Tick(){
 	//Actions
-	switch(button_state){
-		case release:
-			break;
-		case push:
-			break;
-			
-		default:
-			break;
-	}
-	//Transitions
-	switch(button_state){
-		case release:
-			if(GetBit(~PINA,0) && !GetBit(~PINA,2)){
-				if(timeline < 2){
-					right = 1;
-					left = 0;
-					max_servo = 2;
-					++timeline;
-										
-					if(timeline != 1){
-						needs_centering = 1;
-					}
-					
-					else{
-						needs_centering = 0;
-					}
-					
-					button_state = push;
-				}
-			}
-			
-			else if(!GetBit(~PINA,0) && GetBit(~PINA,2)){
+	switch(steering_state){
+		case steering_read:
+			steering = adc_read(1);
+		
+			if(580 < steering){
+				//PORTB = 0x01;
+				
 				if(0 < timeline){
 					right = 0;
 					left = 1;
@@ -78,11 +86,33 @@ void BUTTON_Tick(){
 					else{
 						needs_centering = 0;
 					}
-					button_state = push;
 				}
+				
 			}
-			
+		
+			else if(steering < 500){
+				//PORTB = 0x02;
+				
+				if(timeline < 2){
+					right = 1;
+					left = 0;
+					max_servo = 2;
+					++timeline;
+					
+					if(timeline != 1){
+						needs_centering = 1;
+					}
+					
+					else{
+						needs_centering = 0;
+					}
+				}
+				
+			}
+		
 			else{
+				//PORTB = 0x03;
+				
 				if(timeline < 1){
 					right = 1;
 					left = 0;
@@ -106,76 +136,40 @@ void BUTTON_Tick(){
 					needs_centering = 0;
 				}
 				
-				button_state = release;
-			}
-			
-			break;
-		
-		case push:
-			if(GetBit(~PINA,0) && !GetBit(~PINA,2)){
-				if(timeline < 2){
-					right = 1;
-					left = 0;
-					max_servo = 2;
-					++timeline;
-					
-					if(timeline != 1){
-						needs_centering = 1;
-					}
-					
-					else{
-						needs_centering = 0;
-					}
-				}
-				
-				button_state = push;
-			}
-	
-			else if(!GetBit(~PINA,0) && GetBit(~PINA,2)){
-				if(0 < timeline){
-					right = 0;
-					left = 1;
-					max_servo = 1;
-					--timeline;
-					
-					if(timeline != 1){
-						needs_centering = 1;
-					}
-					
-					else{
-						needs_centering = 0;
-					}
-					
-				}
-				button_state = push;
 			}
 		
-			else{
-				button_state = release;
-			}
 			break;
 		
 		default:
-			button_state = release;
+			break;
+	}
+	//Transitions
+	switch(steering_state){
+		case steering_read:
+			steering_state = steering_read;
+			break;
+		
+		default:
+			steering_state = steering_read;
 			break;
 	}
 }
 
-void BUTTONSecTask()
+void STEERINGSecTask()
 {
-	BUTTON_Init();
-   for(;;) 
-   { 	
-	BUTTON_Tick();
-	vTaskDelay(300); 
-   } 
+	STEERING_Init();
+	for(;;)
+	{
+		STEERING_Tick();
+		vTaskDelay(15);
+	}
 }
 
-void BUTTONSecPulse(unsigned portBASE_TYPE Priority)
+void STEERINGSecPulse(unsigned portBASE_TYPE Priority)
 {
-	xTaskCreate(BUTTONSecTask, (signed portCHAR *)"BUTTONSecTask", configMINIMAL_STACK_SIZE, NULL, Priority, NULL );
-}	
- 
+	xTaskCreate(STEERINGSecTask, (signed portCHAR *)"STEERINGSecTask", configMINIMAL_STACK_SIZE, NULL, Priority, NULL );
+}
+
  enum SERVOState {servo_init,drive_low, drive_high} servo_state;
 
  void SERVO_Init(){
@@ -205,11 +199,11 @@ void SERVO_Tick(){
 				servo_state = drive_high;
 				servo_counter = 0;
 				min_servo = 20 - max_servo;
-				PORTD = 0x01;
+				PORTB = 0x01;
 			}
 		  
 			else{
-				PORTD = 0x00;
+				PORTB = 0x00;
 				servo_state = servo_init;
 			}
 			break;
@@ -221,14 +215,14 @@ void SERVO_Tick(){
 		  
 			else if(!(servo_counter < max_servo) && (left || right)){
 				servo_counter = 0;
-				PORTD = 0x00;
+				PORTB = 0x00;
 				servo_state = drive_low;
 			}
 		  
 			else{
 				 left = 0;
 				right = 0;
-				PORTD = 0x00;
+				PORTB = 0x00;
 				servo_state = servo_init;
 			}
 			break;
@@ -242,7 +236,7 @@ void SERVO_Tick(){
 			 else{
 				left = 0;
 				right = 0;
-				PORTD = 0x00;
+				PORTB = 0x00;
 				servo_state = servo_init;
 			}
 		  
@@ -273,10 +267,12 @@ void SERVO_Tick(){
 int main(void) 
 { 
    DDRA = 0x00; PORTA = 0xFF;
-   DDRD = 0xFF; PORTD = 0x00;
+   DDRB = 0xFF; PORTB = 0x00;
+   
+   adc_init();
    
    //Start Tasks  
-   BUTTONSecPulse(1);
+   STEERINGSecPulse(1);
    SERVOSecPulse(1);
     //RunSchedular 
    vTaskStartScheduler(); 

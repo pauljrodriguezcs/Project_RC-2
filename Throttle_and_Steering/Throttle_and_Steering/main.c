@@ -57,8 +57,17 @@ unsigned char steering_right = 0;	// 1 is right; 0 is straight
 unsigned char led_value = 0x00;
 unsigned short joystick_value = 0;
 unsigned short steering = 0;
+unsigned char obstacle_front = 0;
+unsigned char obstacle_back = 0;
+unsigned char obstacle_left = 0;
+unsigned char obstacle_right = 0;
 
 enum JOYState {joy_read} joy_state;
+enum STEERINGState {steering_read} steering_state;
+enum LEDState {led_output} led_state;
+enum IRState {ir_read} ir_state;
+	
+//--------------------------------------------- Joystick Start ----------------------------------//
 
 void JOY_Init(){
 	joy_state = joy_read;
@@ -130,7 +139,9 @@ void JOYSecPulse(unsigned portBASE_TYPE Priority)
 	xTaskCreate(JOYSecTask, (signed portCHAR *)"JOYSecTask", configMINIMAL_STACK_SIZE, NULL, Priority, NULL );
 }
 
-enum STEERINGState {steering_read} steering_state;
+//--------------------------------------------- Joystick End ----------------------------------//
+
+//--------------------------------------------- Steering Start ----------------------------------//
 
 void STEERING_Init(){
 	steering_state = steering_read;
@@ -188,7 +199,9 @@ void STEERINGSecPulse(unsigned portBASE_TYPE Priority)
 	xTaskCreate(STEERINGSecTask, (signed portCHAR *)"STEERINGSecTask", configMINIMAL_STACK_SIZE, NULL, Priority, NULL );
 }	
 
-enum LEDState {led_output} led_state;
+//--------------------------------------------- Steering End ----------------------------------//
+
+//--------------------------------------------- LED Start ----------------------------------//
 
 void LED_Init(){
 	led_state = led_output;
@@ -198,38 +211,38 @@ void LED_Tick(){
 	//Actions
 	switch(led_state){
 		case led_output:
-			if(throttle == 1){
+			if(throttle == 1 && !obstacle_front){
 				led_value = led_value & 0xC0;
 				led_value = led_value | 0x04;
 				PORTD = led_value;
 			}
 			
-			else if(throttle == 2){
+			else if(throttle == 2 && !obstacle_front){
 				led_value = led_value & 0xC0;
 				led_value = led_value | 0x06;
 				PORTD = led_value;
 
 			}
 			
-			else if(throttle == 3){
+			else if(throttle == 3 && !obstacle_front){
 				led_value = led_value & 0xC0;
 				led_value = led_value | 0x07;
 				PORTD = led_value;
 			}
 			
-			else if(reverse == 1){
+			else if(reverse == 1 && !obstacle_back){
 				led_value = led_value & 0xC0;
 				led_value = led_value | 0x08;
 				PORTD = led_value;
 			}
 			
-			else if(reverse == 2){
+			else if(reverse == 2 && !obstacle_back){
 				led_value = led_value & 0xC0;
 				led_value = led_value | 0x18;
 				PORTD = led_value;
 			}
 			
-			else if(reverse == 3){
+			else if(reverse == 3 && !obstacle_back){
 				led_value = led_value & 0xC0;
 				led_value = led_value | 0x38;
 				PORTD = led_value;
@@ -239,13 +252,13 @@ void LED_Tick(){
 				led_value = led_value & 0xC0;
 			}
 			
-			if(steering_left == 1){
+			if(steering_left == 1 && !obstacle_left){
 				led_value = led_value & 0x3F;
 				led_value = led_value | 0x40;
 				PORTD = led_value;
 			}
 			
-			else if(steering_right){
+			else if(steering_right && !obstacle_right){
 				led_value = led_value & 0x3F;
 				led_value = led_value | 0x80;
 				PORTD = led_value;
@@ -289,6 +302,90 @@ void LEDSecPulse(unsigned portBASE_TYPE Priority)
 	xTaskCreate(LEDSecTask, (signed portCHAR *)"LEDSecTask", configMINIMAL_STACK_SIZE, NULL, Priority, NULL );
 }
  
+ //--------------------------------------------- LED End ----------------------------------//
+ 
+ //--------------------------------------------- Sensor Start ----------------------------------//
+ void IR_Init(){
+	 ir_state = ir_read;
+ }
+
+ void IR_Tick(){
+	 //Actions
+	 switch(ir_state){
+		 case ir_read:
+			/*
+			if(GetBit(~PINA,2)){
+				obstacle_front = 1;
+			}
+		 
+			if(!GetBit(~PINA,2)){
+				obstacle_front = 0;
+			}
+			*/
+			
+			/*
+			if(GetBit(~PINA,3)){
+				obstacle_back = 1;
+			}
+		 
+			if(!GetBit(~PINA,3)){
+				obstacle_back = 0;
+			}
+			*/
+			
+			/*
+			if(GetBit(~PINA,4)){
+				obstacle_left = 1;
+			}
+		 
+			if(!GetBit(~PINA,4)){
+				obstacle_left = 0;
+			}
+			*/
+			
+			///*
+			if(GetBit(~PINA,5)){
+				obstacle_right = 1;
+			}
+		 
+			if(!GetBit(~PINA,5)){
+				obstacle_right = 0;
+			}
+			//*/
+			break;
+		 
+		 default:
+			break;
+	 }
+	 //Transitions
+	 switch(ir_state){
+		 case ir_read:
+			ir_state = ir_read;
+			break;
+		 
+		 default:
+			ir_state = ir_read;
+			break;
+	 }
+ }
+
+ void IRSecTask()
+ {
+	 IR_Init();
+	 for(;;)
+	 {
+		 IR_Tick();
+		 vTaskDelay(10);
+	 }
+ }
+
+ void IRSecPulse(unsigned portBASE_TYPE Priority)
+ {
+	 xTaskCreate(IRSecTask, (signed portCHAR *)"IRSecTask", configMINIMAL_STACK_SIZE, NULL, Priority, NULL );
+ }
+ 
+ //--------------------------------------------- Sensor End ----------------------------------//
+ 
 int main(void) 
 { 
    DDRA = 0x00; PORTA=0xFF;
@@ -297,6 +394,7 @@ int main(void)
    //Start Tasks  
    JOYSecPulse(1);
    STEERINGSecPulse(1);
+   IRSecPulse(10);
    LEDSecPulse(1);
     //RunSchedular 
    vTaskStartScheduler(); 
