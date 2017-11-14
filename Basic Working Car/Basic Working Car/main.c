@@ -66,7 +66,7 @@ unsigned char max_servo = 0;
 unsigned char min_servo = 0;
 unsigned char servo_counter = 0;
 unsigned char needs_centering  = 0;
-unsigned char timeline = 1;	// left 0, center = 1, right = 2
+//unsigned char timeline = 1;	// left 0, center = 1, right = 2
 unsigned short steering = 0;
 
 //-------------------------------------------------- Enumeration of States --------------------------------------------------//
@@ -75,7 +75,7 @@ enum JOYState {joy_read} joy_state;
 enum STEERINGState {steering_read} steering_state;
 enum FORWARDState {forward_off, forward_on_high,forward_on_low} forward_state;
 enum REVERSEState {reverse_off, reverse_on_high,reverse_on_low} reverse_state;
-enum SERVOState {servo_init, drive_low, drive_high} servo_state;
+enum SERVOState {servo_init, drive_high} servo_state;
 
 //-------------------------------------------------- Start Joystick SM --------------------------------------------------//
 
@@ -174,68 +174,68 @@ void STEERING_Tick(){
 		if(580 < steering){
 			//PORTB = 0x01;
 			
-			if(0 < timeline){
+			//if(0 < timeline){
 				right = 0;
 				left = 1;
 				max_servo = 1;
-				--timeline;
+				//--timeline;
 				
-				if(timeline != 1){
-					needs_centering = 1;
-				}
+				//if(timeline != 1){
+				//	needs_centering = 1;
+				//}
 				
-				else{
-					needs_centering = 0;
-				}
-			}
+				//else{
+				//	needs_centering = 0;
+				//}
+			//}
 			
 		}
 		
 		else if(steering < 500){
 			//PORTB = 0x02;
 			
-			if(timeline < 2){
+			//if(timeline < 2){
 				right = 1;
 				left = 0;
 				max_servo = 2;
-				++timeline;
+				//++timeline;
 				
-				if(timeline != 1){
-					needs_centering = 1;
-				}
+				//if(timeline != 1){
+				//	needs_centering = 1;
+				//}
 				
-				else{
-					needs_centering = 0;
-				}
-			}
+				//else{
+				//	needs_centering = 0;
+				//}
+			//}
 			
 		}
 		
 		else{
 			//PORTB = 0x03;
 			
-			if(timeline < 1){
-				right = 1;
-				left = 0;
-				max_servo = 2;
-				++timeline;
-				needs_centering = 1;
-			}
+			//if(timeline < 1){
+			//	right = 1;
+			//	left = 0;
+			//	max_servo = 2;
+			//	++timeline;
+			//	needs_centering = 1;
+			//}
 			
-			else if(1 < timeline){
-				right = 0;
-				left = 1;
-				max_servo = 1;
-				--timeline;
-				needs_centering = 1;
-			}
+			//else if(1 < timeline){
+			//	right = 0;
+			//	left = 1;
+			//	max_servo = 1;
+			//	--timeline;
+			//	needs_centering = 1;
+			//}
 			
-			else{
+			//else{
 				right = 0;
 				left = 0;
 				max_servo = 0;
-				needs_centering = 0;
-			}
+			//	needs_centering = 0;
+			//}
 			
 		}
 		
@@ -480,8 +480,8 @@ void SERVO_Tick(){
 		case drive_high:
 		break;
 
-		case drive_low:
-		break;
+		//case drive_low:
+		//break;
 		
 		default:
 		break;
@@ -493,7 +493,7 @@ void SERVO_Tick(){
 		if(left || right){
 			servo_state = drive_high;
 			servo_counter = 0;
-			min_servo = 20 - max_servo;
+			//min_servo = 20 - max_servo;
 			PORTB = 0x01;
 		}
 		
@@ -502,18 +502,19 @@ void SERVO_Tick(){
 			servo_state = servo_init;
 		}
 		break;
+		
 		case drive_high:
 		if((servo_counter < max_servo) && (left || right)){
 			++servo_counter;
 			servo_state = drive_high;
 		}
-		
+		/*
 		else if(!(servo_counter < max_servo) && (left || right)){
 			servo_counter = 0;
 			PORTB = 0x00;
 			servo_state = drive_low;
 		}
-		
+		*/
 		else{
 			left = 0;
 			right = 0;
@@ -521,7 +522,7 @@ void SERVO_Tick(){
 			servo_state = servo_init;
 		}
 		break;
-		
+		/*
 		case drive_low:
 		if((servo_counter < min_servo) && (left || right)){
 			++servo_counter;
@@ -536,7 +537,7 @@ void SERVO_Tick(){
 		}
 		
 		break;
-		
+		*/
 		default:
 		servo_state = servo_init;
 		break;

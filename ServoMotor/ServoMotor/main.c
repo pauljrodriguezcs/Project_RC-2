@@ -50,12 +50,12 @@ uint16_t adc_read(uint8_t ch)
 
 
 unsigned char right = 0;	// A0
+unsigned char center = 1;
 unsigned char left = 0;		// A2
 unsigned char max_servo = 0;
 unsigned char min_servo = 0;
 unsigned char servo_counter = 0;
-unsigned char needs_centering  = 0;
-unsigned char timeline = 1;	// left 0, center = 1, right = 2
+unsigned char timeline = 1;	// left 0, center = 2, right = 4
 unsigned short steering = 0;
 
 enum STEERINGState {steering_read} steering_state;
@@ -70,55 +70,35 @@ void STEERING_Tick(){
 		case steering_read:
 			steering = adc_read(1);
 		
-			if(580 < steering){
-				//PORTB = 0x01;
-				
-				if(0 < timeline){
+			if(570 < steering){
+				//if(0 < timeline){
 					right = 0;
+					center = 0;
 					left = 1;
 					max_servo = 1;
-					--timeline;
-					
-					if(timeline != 1){
-						needs_centering = 1;
-					}
-					
-					else{
-						needs_centering = 0;
-					}
-				}
+				//	--timeline;
+				//}
 				
 			}
 		
-			else if(steering < 500){
-				//PORTB = 0x02;
-				
-				if(timeline < 2){
+			else if(steering < 500){				
+				//if(timeline < 2){
 					right = 1;
+					center = 0;
 					left = 0;
 					max_servo = 2;
-					++timeline;
-					
-					if(timeline != 1){
-						needs_centering = 1;
-					}
-					
-					else{
-						needs_centering = 0;
-					}
-				}
+					//++timeline;
+				//}
 				
 			}
 		
 			else{
-				//PORTB = 0x03;
-				
+				/*				
 				if(timeline < 1){
 					right = 1;
 					left = 0;
 					max_servo = 2;
 					++timeline;
-					needs_centering = 1;
 				}
 				
 				else if(1 < timeline){
@@ -126,15 +106,14 @@ void STEERING_Tick(){
 					left = 1;
 					max_servo = 1;
 					--timeline;
-					needs_centering = 1;
 				}
-				
-				else{
+				*/
+				//else{
 					right = 0;
 					left = 0;
+					center = 1;
 					max_servo = 0;
-					needs_centering = 0;
-				}
+				//}
 				
 			}
 		
@@ -161,7 +140,7 @@ void STEERINGSecTask()
 	for(;;)
 	{
 		STEERING_Tick();
-		vTaskDelay(15);
+		vTaskDelay(20);
 	}
 }
 
@@ -170,35 +149,20 @@ void STEERINGSecPulse(unsigned portBASE_TYPE Priority)
 	xTaskCreate(STEERINGSecTask, (signed portCHAR *)"STEERINGSecTask", configMINIMAL_STACK_SIZE, NULL, Priority, NULL );
 }
 
- enum SERVOState {servo_init,drive_low, drive_high} servo_state;
+ enum SERVOState {servo_init, drive_high} servo_state;
 
  void SERVO_Init(){
 	 servo_state = servo_init;
  }
 
 void SERVO_Tick(){
-	//Actions
-	switch(servo_state){
-		case servo_init:
-			break;
-		  
-		case drive_high:
-			break;
-
-		case drive_low:
-			break;
-		  
-		default:
-			break;
-	}
-	
 	//Transitions
 	switch(servo_state){
 		case servo_init:
 			if(left || right){
 				servo_state = drive_high;
 				servo_counter = 0;
-				min_servo = 20 - max_servo;
+				//min_servo = 20 - max_servo;
 				PORTB = 0x01;
 			}
 		  
@@ -207,33 +171,36 @@ void SERVO_Tick(){
 				servo_state = servo_init;
 			}
 			break;
+			
 		case drive_high:
 			if((servo_counter < max_servo) && (left || right)){
 				 ++servo_counter;
 				servo_state = drive_high;
 			}
-		  
-			else if(!(servo_counter < max_servo) && (left || right)){
-				servo_counter = 0;
-				PORTB = 0x00;
-				servo_state = drive_low;
-			}
-		  
+			
 			else{
 				 left = 0;
-				right = 0;
-				PORTB = 0x00;
-				servo_state = servo_init;
+				 center = 0;
+				 right = 0;
+				 PORTB = 0x00;
+				 servo_state = servo_init;
 			}
 			break;
-		  
+		 /* 
 		case drive_low:
 			if((servo_counter < min_servo) && (left || right)){
 				++servo_counter;
 				servo_state = drive_low;
 			}
-		  
-			 else{
+			
+			else if(!(servo_counter < max_servo) && (left || right)){
+				servo_counter = 0;
+				PORTB = 0x01;
+				servo_state = drive_high;
+			}
+
+			
+			else{
 				left = 0;
 				right = 0;
 				PORTB = 0x00;
@@ -241,11 +208,35 @@ void SERVO_Tick(){
 			}
 		  
 			break;
-		  
+		  */
 		default:
 			servo_state = servo_init;
 			break;
 	  }
+	  
+	//Actions
+	switch(servo_state){
+		case servo_init:
+			break;
+		  
+		case drive_high:
+			if(center){
+				left = 0;
+				center = 0;
+				right = 0;
+				PORTB = 0x00;
+				servo_state = servo_init;
+			}
+			break;
+/*
+		case drive_low:
+			break;
+		  */
+		default:
+			break;
+	}
+	
+	
   }
 
 

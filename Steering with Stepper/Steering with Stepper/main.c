@@ -20,7 +20,7 @@
 unsigned char phases[8] = {0x01, 0x03, 0x02, 0x06, 0x04, 0x0C, 0x08,  0x09};
 unsigned char orientation = 2; //0 = forward, 1 = backward, 2 = do nothing
 unsigned char p_index = 0;
-uint16_t axle = 499;
+unsigned short axle = 499;
 unsigned char needs_centering = 0;
 
 
@@ -37,11 +37,6 @@ void Motor_Tick(){
 		case m_init:
 		if((orientation == 0) && (axle < 998)){
 			++axle;
-			
-			uint16_t old_axle = eeprom_read_word((uint16_t*)6);
-			if(old_axle != axle){
-				eeprom_update_word((uint16_t*)6, axle);
-			}
 
 			if(axle != 499){
 				needs_centering = 1;
@@ -65,11 +60,6 @@ void Motor_Tick(){
 		
 		else if((orientation == 1) && (0 < axle)){
 			--axle;
-			
-			uint16_t old_axle = eeprom_read_word((uint16_t*)6);
-			if(old_axle != axle){
-				eeprom_update_word((uint16_t*)6, axle);
-			}
 
 			if(axle != 499){
 				needs_centering = 1;
@@ -223,17 +213,6 @@ int main(void)
 	DDRA = 0x00; PORTA = 0xFF;
 	DDRC = 0xFF; PORTC = 0x00;
 	DDRD = 0xFF; PORTD = 0x00;
-	
-	//eeprom_write_word((uint16_t*)6,499);
-	axle = eeprom_read_word((uint16_t*)6);
-	
-	if(axle != 499){
-		needs_centering = 1;
-	}
-	
-	else{
-		needs_centering = 0;
-	}
 	
 	//Start Tasks
 	MotorSecPulse(1);

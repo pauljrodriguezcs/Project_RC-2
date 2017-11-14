@@ -48,6 +48,7 @@ uint16_t adc_read(uint8_t ch)
 #include "task.h" 
 #include "croutine.h" 
 
+#include "usart_ATmega1284.h"
 #include "bit.h"
 
 unsigned char throttle = 0; // ranges 1, 2, or 3
@@ -62,10 +63,147 @@ unsigned char obstacle_back = 0;
 unsigned char obstacle_left = 0;
 unsigned char obstacle_right = 0;
 
+//variables for data transmitted
+unsigned char bit_val_0 = 0;
+unsigned char bit_val_1 = 0;
+unsigned char data_recieved = 0x00;
+
+enum TRANSMISSIONState {transmit_wait, transmit_read} transmission_state;
 enum JOYState {joy_read} joy_state;
 enum STEERINGState {steering_read} steering_state;
 enum LEDState {led_output} led_state;
 enum IRState {ir_read} ir_state;
+	
+//-------------------------------------------------- Start Transmission Read SM --------------------------------------------------//
+
+void TRANSMISSION_Init(){
+	transmission_state = transmit_wait;
+}
+
+void TRANSMISSION_Tick(){
+	//state actions
+	switch(transmission_state){
+		case transmit_wait:
+		break;
+		
+		case transmit_read:
+		data_recieved = USART_Receive(0); //store received value
+		USART_Flush(0); //delete received val from register
+		
+		bit_val_0 = GetBit(data_recieved,2);	// direction bit
+		
+		if(bit_val_0){	//reverse
+			//going_reverse = 1;
+			bit_val_0 = GetBit(data_recieved,0);	// speed bit 0
+			bit_val_1 = GetBit(data_recieved,1);	// speed bit 1
+			
+			if(!bit_val_1 && bit_val_0){	//01
+				reverse = 1;
+			}
+			
+			else if(bit_val_1 && !bit_val_0){	//10
+				reverse = 2;
+			}
+			
+			else if(bit_val_1 && bit_val_0){	//11
+				reverse = 3;
+			}
+			
+			else {	//00
+				reverse = 0;
+			}
+		}
+		
+		else{	//forward or none
+			////going_forward = 1;
+			bit_val_0 = GetBit(data_recieved,0);	// speed bit 0
+			bit_val_1 = GetBit(data_recieved,1);	// speed bit 1
+			
+			if(!bit_val_1 && bit_val_0){	//01
+				throttle = 1;
+			}
+			
+			else if(bit_val_1 && !bit_val_0){	//10
+				throttle = 2;
+			}
+			
+			else if(bit_val_1 && bit_val_0){	//11
+				throttle = 3;
+			}
+			
+			else {	//00
+				//going_forward = 0;
+				//going_reverse = 0;
+				throttle = 0;
+				reverse = 0;
+			}
+		}
+		
+		bit_val_0 = GetBit(data_recieved,3);	// steering_right
+		bit_val_1 = GetBit(data_recieved,4);	// left
+		
+		if(!bit_val_1 && bit_val_0){
+			steering_right = 1;
+			steering_left = 0;
+			//max_servo = 2;
+			
+		}
+		
+		else if(bit_val_1 && !bit_val_0){
+			steering_right = 0;
+			steering_left = 1;
+			//max_servo = 1;
+		}
+		
+		else{
+			steering_right = 0;
+			steering_left = 0;
+			//max_servo = 0;
+		}
+		
+		break;
+		
+		default:
+		break;
+	}
+	
+	//state transitions
+	switch(transmission_state){
+		case transmit_wait:
+		if(USART_HasReceived(0)){
+			transmission_state = transmit_read;
+		}
+		else{
+			transmission_state = transmit_wait;
+		}
+		break;
+		
+		case transmit_read:
+		transmission_state = transmit_wait;
+		break;
+		
+		default:
+		transmission_state = transmit_wait;
+		break;
+	}
+}
+
+void TRANSMISSIONSecTask(){
+	TRANSMISSION_Init();
+	for(;;){
+		TRANSMISSION_Tick();
+		vTaskDelay(3);
+	}
+}
+
+void TRANSMISSIONSecPulse(unsigned portBASE_TYPE Priority){
+	xTaskCreate(TRANSMISSIONSecTask, (signed portCHAR *)"TRANSMISSIONSecTask", configMINIMAL_STACK_SIZE, NULL, Priority, NULL );
+}
+
+
+
+//-------------------------------------------------- End Transmission Read SM --------------------------------------------------//
+
 	
 //--------------------------------------------- Joystick Start ----------------------------------//
 
@@ -214,38 +352,38 @@ void LED_Tick(){
 			if(throttle == 1 && !obstacle_front){
 				led_value = led_value & 0xC0;
 				led_value = led_value | 0x04;
-				PORTD = led_value;
+				PORTC = led_value;
 			}
 			
 			else if(throttle == 2 && !obstacle_front){
 				led_value = led_value & 0xC0;
 				led_value = led_value | 0x06;
-				PORTD = led_value;
+				PORTC = led_value;
 
 			}
 			
 			else if(throttle == 3 && !obstacle_front){
 				led_value = led_value & 0xC0;
 				led_value = led_value | 0x07;
-				PORTD = led_value;
+				PORTC = led_value;
 			}
 			
 			else if(reverse == 1 && !obstacle_back){
 				led_value = led_value & 0xC0;
 				led_value = led_value | 0x08;
-				PORTD = led_value;
+				PORTC = led_value;
 			}
 			
 			else if(reverse == 2 && !obstacle_back){
 				led_value = led_value & 0xC0;
 				led_value = led_value | 0x18;
-				PORTD = led_value;
+				PORTC = led_value;
 			}
 			
 			else if(reverse == 3 && !obstacle_back){
 				led_value = led_value & 0xC0;
 				led_value = led_value | 0x38;
-				PORTD = led_value;
+				PORTC = led_value;
 			}
 			
 			else{
@@ -255,24 +393,24 @@ void LED_Tick(){
 			if(steering_left == 1 && !obstacle_left){
 				led_value = led_value & 0x3F;
 				led_value = led_value | 0x40;
-				PORTD = led_value;
+				PORTC = led_value;
 			}
 			
 			else if(steering_right && !obstacle_right){
 				led_value = led_value & 0x3F;
 				led_value = led_value | 0x80;
-				PORTD = led_value;
+				PORTC = led_value;
 			}
 			
 			else{
 				led_value = led_value & 0x3F;
-				PORTD = led_value;
+				PORTC = led_value;
 			}
 			
 			break;
 		
 		default:
-			PORTD = 0x00;
+			PORTC = 0x00;
 			break;
 	}
 	//Transitions
@@ -343,7 +481,7 @@ void LEDSecPulse(unsigned portBASE_TYPE Priority)
 			}
 			*/
 			
-			///*
+			/*
 			if(GetBit(~PINA,5)){
 				obstacle_right = 1;
 			}
@@ -351,7 +489,7 @@ void LEDSecPulse(unsigned portBASE_TYPE Priority)
 			if(!GetBit(~PINA,5)){
 				obstacle_right = 0;
 			}
-			//*/
+			*/
 			break;
 		 
 		 default:
@@ -389,12 +527,15 @@ void LEDSecPulse(unsigned portBASE_TYPE Priority)
 int main(void) 
 { 
    DDRA = 0x00; PORTA=0xFF;
-   DDRD = 0xFF; PORTD = 0x00;
-   adc_init();
-   //Start Tasks  
-   JOYSecPulse(1);
-   STEERINGSecPulse(1);
-   IRSecPulse(10);
+   DDRC = 0xFF; PORTC = 0x00;
+   //adc_init();
+   initUSART(0);
+
+   //Start Tasks
+   TRANSMISSIONSecPulse(1);   
+   //JOYSecPulse(1);
+   //STEERINGSecPulse(1);
+   //IRSecPulse(10);
    LEDSecPulse(1);
     //RunSchedular 
    vTaskStartScheduler(); 
