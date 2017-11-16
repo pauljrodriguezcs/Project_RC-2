@@ -85,6 +85,7 @@ unsigned char data_recieved = 0x00;
 //-------------------------------------------------- Enumeration of States --------------------------------------------------//
 
 enum TRANSMISSIONState {transmit_wait, transmit_read} transmission_state;
+enum IRState {ir_read} ir_state;
 enum FORWARDState {forward_off, forward_on_high,forward_on_low} forward_state;
 enum REVERSEState {reverse_off, reverse_on_high,reverse_on_low} reverse_state;
 enum SERVOState {servo_init, drive_high} servo_state;
@@ -130,7 +131,14 @@ void TRANSMISSION_Tick(){
 			}
 			
 			else{	//forward or none
-				going_forward = 1;
+				if(!GetBit(~PINA,0)){
+					going_forward = 1;
+				}
+				
+				else{
+					going_forward = 0;
+				}
+				
 				bit_val_0 = GetBit(data_recieved,0);	// speed bit 0
 				bit_val_1 = GetBit(data_recieved,1);	// speed bit 1
 				
@@ -144,6 +152,7 @@ void TRANSMISSION_Tick(){
 				
 				else if(bit_val_1 && bit_val_0){	//11
 					throttle = 3;
+
 				}
 				
 				else {	//00
@@ -157,14 +166,14 @@ void TRANSMISSION_Tick(){
 			bit_val_0 = GetBit(data_recieved,3);	// right
 			bit_val_1 = GetBit(data_recieved,4);	// left
 			
-			if(!bit_val_1 && bit_val_0){
+			if(!bit_val_1 && bit_val_0 && !GetBit(~PINA,3)){
 				right = 1;
 				left = 0;
 				max_servo = 2;
 				
 			}
 			
-			else if(bit_val_1 && !bit_val_0){
+			else if(bit_val_1 && !bit_val_0 && !GetBit(~PINA,2)){
 				right = 0;
 				left = 1;
 				max_servo = 1;
@@ -215,9 +224,87 @@ void TRANSMISSIONSecPulse(unsigned portBASE_TYPE Priority){
 	xTaskCreate(TRANSMISSIONSecTask, (signed portCHAR *)"TRANSMISSIONSecTask", configMINIMAL_STACK_SIZE, NULL, Priority, NULL );
 }
 	
-	
 
 //-------------------------------------------------- End Transmission Read SM --------------------------------------------------//
+
+//------------------------------------------------------ Start IR Read SM ------------------------------------------------------//
+
+
+void IR_Init(){
+	ir_state = ir_read;
+}
+
+void IR_Tick(){
+	//Actions
+	switch(ir_state){
+		case ir_read:
+		if(GetBit(~PINA,0)){
+			//going_forward = 0;
+			//throttle = 0;
+		}
+		/*
+		if(!GetBit(~PINA,0)){
+			going_forward = 1;
+		}
+	
+		if(GetBit(~PINA,1)){
+			going_reverse = 0;
+		}
+		
+		if(!GetBit(~PINA,1)){
+			going_reverse = 1;
+		}
+		
+		if(GetBit(~PINA,2)){
+			left = 0;
+		}
+		
+		if(!GetBit(~PINA,2)){
+			left = 1;
+		}
+		
+		if(GetBit(~PINA,3)){
+			right = 0;
+		}
+		
+		if(!GetBit(~PINA,3)){
+			right = 1;
+		}
+		*/
+		break;
+		
+		default:
+		break;
+	}
+	//Transitions
+	switch(ir_state){
+		case ir_read:
+		ir_state = ir_read;
+		break;
+		
+		default:
+		ir_state = ir_read;
+		break;
+	}
+}
+
+void IRSecTask()
+{
+	IR_Init();
+	for(;;)
+	{
+		IR_Tick();
+		vTaskDelay(1);
+	}
+}
+
+void IRSecPulse(unsigned portBASE_TYPE Priority)
+{
+	xTaskCreate(IRSecTask, (signed portCHAR *)"IRSecTask", configMINIMAL_STACK_SIZE, NULL, Priority, NULL );
+}
+
+
+//--------------------------------------------------------- End IR Read SM --------------------------------------------------------//
 
 //-------------------------------------------------- Start DC Motor SM (Forward) --------------------------------------------------//
 
@@ -492,6 +579,7 @@ int main(void)
 	initUSART(0);
 	//Start Tasks
 	TRANSMISSIONSecPulse(1);
+	IRSecPulse(10);
 	ForwardSecPulse(1);
 	ReverseSecPulse(1);
 	SERVOSecPulse(1);
