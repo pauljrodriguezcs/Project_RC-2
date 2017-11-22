@@ -155,17 +155,17 @@ void *pvPortMalloc( size_t xWantedSize )
 {
   c8:	cf 93       	push	r28
   ca:	df 93       	push	r29
+  cc:	ec 01       	movw	r28, r24
 			/* Byte alignment required. */
 			xWantedSize += ( portBYTE_ALIGNMENT - ( xWantedSize & portBYTE_ALIGNMENT_MASK ) );
 		}
 	#endif
 
 	vTaskSuspendAll();
-  cc:	ec 01       	movw	r28, r24
+  ce:	da d4       	rcall	.+2484   	; 0xa84 <vTaskSuspendAll>
 	{
 		/* Check there is enough room left for the allocation. */
 		if( ( ( xNextFreeByte + xWantedSize ) < configTOTAL_HEAP_SIZE ) &&
-  ce:	da d4       	rcall	.+2484   	; 0xa84 <vTaskSuspendAll>
   d0:	20 91 32 01 	lds	r18, 0x0132	; 0x800132 <__data_end>
   d4:	30 91 33 01 	lds	r19, 0x0133	; 0x800133 <__data_end+0x1>
   d8:	c9 01       	movw	r24, r18
@@ -177,43 +177,43 @@ void *pvPortMalloc( size_t xWantedSize )
   e4:	58 f4       	brcc	.+22     	; 0xfc <pvPortMalloc+0x34>
   e6:	28 17       	cp	r18, r24
   e8:	39 07       	cpc	r19, r25
+  ea:	58 f4       	brcc	.+22     	; 0x102 <pvPortMalloc+0x3a>
 			( ( xNextFreeByte + xWantedSize ) > xNextFreeByte )	)/* Check for overflow. */
 		{
 			/* Return the next free byte then increment the index past this
 			block. */
 			pvReturn = &( xHeap.ucHeap[ xNextFreeByte ] );
-  ea:	58 f4       	brcc	.+22     	; 0x102 <pvPortMalloc+0x3a>
   ec:	e9 01       	movw	r28, r18
   ee:	cc 5c       	subi	r28, 0xCC	; 204
-			xNextFreeByte += xWantedSize;			
   f0:	de 4f       	sbci	r29, 0xFE	; 254
+			xNextFreeByte += xWantedSize;			
   f2:	90 93 33 01 	sts	0x0133, r25	; 0x800133 <__data_end+0x1>
   f6:	80 93 32 01 	sts	0x0132, r24	; 0x800132 <__data_end>
+  fa:	05 c0       	rjmp	.+10     	; 0x106 <pvPortMalloc+0x3e>
 static size_t xNextFreeByte = ( size_t ) 0;
 /*-----------------------------------------------------------*/
 
 void *pvPortMalloc( size_t xWantedSize )
 {
 void *pvReturn = NULL; 
-  fa:	05 c0       	rjmp	.+10     	; 0x106 <pvPortMalloc+0x3e>
   fc:	c0 e0       	ldi	r28, 0x00	; 0
   fe:	d0 e0       	ldi	r29, 0x00	; 0
  100:	02 c0       	rjmp	.+4      	; 0x106 <pvPortMalloc+0x3e>
+ 102:	c0 e0       	ldi	r28, 0x00	; 0
 			block. */
 			pvReturn = &( xHeap.ucHeap[ xNextFreeByte ] );
 			xNextFreeByte += xWantedSize;			
 		}	
 	}
 	xTaskResumeAll();
- 102:	c0 e0       	ldi	r28, 0x00	; 0
  104:	d0 e0       	ldi	r29, 0x00	; 0
+ 106:	85 d5       	rcall	.+2826   	; 0xc12 <xTaskResumeAll>
 		}
 	}
 	#endif	
 
 	return pvReturn;
 }
- 106:	85 d5       	rcall	.+2826   	; 0xc12 <xTaskResumeAll>
  108:	ce 01       	movw	r24, r28
  10a:	df 91       	pop	r29
  10c:	cf 91       	pop	r28
@@ -846,13 +846,14 @@ unsigned char USART_HasTransmitted(unsigned char usartNum)
 void TRANSMIT_Init(){
 	transmit_state = wait_to_transmit;
  4c4:	10 92 6f 07 	sts	0x076F, r1	; 0x80076f <transmit_state>
+	
 void TRANSMITSecTask(){
 	TRANSMIT_Init();
 	for(;;)
 	{
 		TRANSMIT_Tick();
-		vTaskDelay(5);
  4c8:	df df       	rcall	.-66     	; 0x488 <TRANSMIT_Tick>
+		vTaskDelay(5);
  4ca:	85 e0       	ldi	r24, 0x05	; 5
  4cc:	90 e0       	ldi	r25, 0x00	; 0
  4ce:	22 d4       	rcall	.+2116   	; 0xd14 <vTaskDelay>
@@ -906,42 +907,42 @@ int main(void)
 	DDRA = 0x00; PORTA = 0xFF;
  510:	11 b8       	out	0x01, r1	; 1
  512:	8f ef       	ldi	r24, 0xFF	; 255
+ 514:	82 b9       	out	0x02, r24	; 2
 	//DDRB = 0xFF; PORTB = 0x00;
 	//DDRC = 0xFF; PORTC = 0x00;
 	//DDRD = 0xFF; PORTD = 0x00;
 	adc_init();
+ 516:	97 de       	rcall	.-722    	; 0x246 <adc_init>
 	initUSART(0);
- 514:	82 b9       	out	0x02, r24	; 2
+ 518:	80 e0       	ldi	r24, 0x00	; 0
+ 51a:	b0 de       	rcall	.-672    	; 0x27c <initUSART>
 	//Start Tasks
 	JOYSecPulse(1);
- 516:	97 de       	rcall	.-722    	; 0x246 <adc_init>
-	STEERINGSecPulse(1);
- 518:	80 e0       	ldi	r24, 0x00	; 0
-	TRANSMITSecPulse(1);
- 51a:	b0 de       	rcall	.-672    	; 0x27c <initUSART>
  51c:	81 e0       	ldi	r24, 0x01	; 1
  51e:	45 df       	rcall	.-374    	; 0x3aa <JOYSecPulse>
-	//RunSchedular
-	vTaskStartScheduler();
+	STEERINGSecPulse(1);
  520:	81 e0       	ldi	r24, 0x01	; 1
+	TRANSMITSecPulse(1);
  522:	93 df       	rcall	.-218    	; 0x44a <STEERINGSecPulse>
-	
-	return 0;
  524:	81 e0       	ldi	r24, 0x01	; 1
  526:	d5 df       	rcall	.-86     	; 0x4d2 <TRANSMITSecPulse>
+	//RunSchedular
+	vTaskStartScheduler();
  528:	84 d2       	rcall	.+1288   	; 0xa32 <vTaskStartScheduler>
  52a:	80 e0       	ldi	r24, 0x00	; 0
+	
+	return 0;
  52c:	90 e0       	ldi	r25, 0x00	; 0
  52e:	08 95       	ret
 
 00000530 <pxPortInitialiseStack>:
+ 530:	31 e1       	ldi	r19, 0x11	; 17
 	return pdTRUE;
 }
 /*-----------------------------------------------------------*/
 
 void vPortEndScheduler( void )
 {
- 530:	31 e1       	ldi	r19, 0x11	; 17
  532:	fc 01       	movw	r30, r24
  534:	30 83       	st	Z, r19
  536:	31 97       	sbiw	r30, 0x01	; 1
@@ -1153,10 +1154,10 @@ void vPortYield( void )
  6cc:	0d b6       	in	r0, 0x3d	; 61
  6ce:	0d 92       	st	X+, r0
  6d0:	0e b6       	in	r0, 0x3e	; 62
-	vTaskSwitchContext();
  6d2:	0d 92       	st	X+, r0
-	portRESTORE_CONTEXT();
+	vTaskSwitchContext();
  6d4:	70 d3       	rcall	.+1760   	; 0xdb6 <vTaskSwitchContext>
+	portRESTORE_CONTEXT();
  6d6:	a0 91 6d 07 	lds	r26, 0x076D	; 0x80076d <pxCurrentTCB>
  6da:	b0 91 6e 07 	lds	r27, 0x076E	; 0x80076e <pxCurrentTCB+0x1>
  6de:	cd 91       	ld	r28, X+
@@ -1196,9 +1197,9 @@ void vPortYield( void )
  722:	1f 90       	pop	r1
  724:	0f 90       	pop	r0
  726:	0f be       	out	0x3f, r0	; 63
+ 728:	0f 90       	pop	r0
 
 	asm volatile ( "ret" );
- 728:	0f 90       	pop	r0
  72a:	08 95       	ret
 
 0000072c <vPortYieldFromTick>:
@@ -1249,13 +1250,13 @@ void vPortYieldFromTick( void )
  77c:	0d b6       	in	r0, 0x3d	; 61
  77e:	0d 92       	st	X+, r0
  780:	0e b6       	in	r0, 0x3e	; 62
-	vTaskIncrementTick();
-	vTaskSwitchContext();
  782:	0d 92       	st	X+, r0
+	vTaskIncrementTick();
  784:	85 d1       	rcall	.+778    	; 0xa90 <vTaskIncrementTick>
-	portRESTORE_CONTEXT();
+	vTaskSwitchContext();
  786:	17 d3       	rcall	.+1582   	; 0xdb6 <vTaskSwitchContext>
  788:	a0 91 6d 07 	lds	r26, 0x076D	; 0x80076d <pxCurrentTCB>
+	portRESTORE_CONTEXT();
  78c:	b0 91 6e 07 	lds	r27, 0x076E	; 0x80076e <pxCurrentTCB+0x1>
  790:	cd 91       	ld	r28, X+
  792:	cd bf       	out	0x3d, r28	; 61
@@ -1294,14 +1295,19 @@ void vPortYieldFromTick( void )
  7d4:	1f 90       	pop	r1
  7d6:	0f 90       	pop	r0
  7d8:	0f be       	out	0x3f, r0	; 63
-
-	asm volatile ( "ret" );
  7da:	0f 90       	pop	r0
  7dc:	08 95       	ret
 
 000007de <__vector_13>:
-}
+
+	asm volatile ( "ret" );
  7de:	a6 df       	rcall	.-180    	; 0x72c <vPortYieldFromTick>
+	 */
+	void TIMER1_COMPA_vect( void ) __attribute__ ( ( signal, naked ) );
+	void TIMER1_COMPA_vect( void )
+	{
+		vPortYieldFromTick();
+		asm volatile ( "reti" );
  7e0:	18 95       	reti
 
 000007e2 <prvAddCurrentTaskToDelayedList>:
@@ -1893,59 +1899,59 @@ void vPortYieldFromTick( void )
 		/* A delay time of zero just forces a reschedule. */
 		if( xTicksToDelay > ( portTickType ) 0U )
  d1a:	89 2b       	or	r24, r25
+ d1c:	91 f0       	breq	.+36     	; 0xd42 <vTaskDelay+0x2e>
 		{
 			vTaskSuspendAll();
- d1c:	91 f0       	breq	.+36     	; 0xd42 <vTaskDelay+0x2e>
+ d1e:	b2 de       	rcall	.-668    	; 0xa84 <vTaskSuspendAll>
 				This task cannot be in an event list as it is the currently
 				executing task. */
 
 				/* Calculate the time to wake - this may overflow but this is
 				not a problem. */
 				xTimeToWake = xTickCount + xTicksToDelay;
- d1e:	b2 de       	rcall	.-668    	; 0xa84 <vTaskSuspendAll>
  d20:	80 91 1d 07 	lds	r24, 0x071D	; 0x80071d <xTickCount>
  d24:	90 91 1e 07 	lds	r25, 0x071E	; 0x80071e <xTickCount+0x1>
  d28:	c8 0f       	add	r28, r24
+ d2a:	d9 1f       	adc	r29, r25
 
 				/* We must remove ourselves from the ready list before adding
 				ourselves to the blocked list as the same list item is used for
 				both lists. */
 				vListRemove( ( xListItem * ) &( pxCurrentTCB->xGenericListItem ) );
- d2a:	d9 1f       	adc	r29, r25
  d2c:	80 91 6d 07 	lds	r24, 0x076D	; 0x80076d <pxCurrentTCB>
  d30:	90 91 6e 07 	lds	r25, 0x076E	; 0x80076e <pxCurrentTCB+0x1>
+ d34:	02 96       	adiw	r24, 0x02	; 2
+ d36:	61 da       	rcall	.-2878   	; 0x1fa <vListRemove>
 				prvAddCurrentTaskToDelayedList( xTimeToWake );
+ d38:	ce 01       	movw	r24, r28
+ d3a:	53 dd       	rcall	.-1370   	; 0x7e2 <prvAddCurrentTaskToDelayedList>
 			}
 			xAlreadyYielded = xTaskResumeAll();
- d34:	02 96       	adiw	r24, 0x02	; 2
+ d3c:	6a df       	rcall	.-300    	; 0xc12 <xTaskResumeAll>
 		}
 
 		/* Force a reschedule if xTaskResumeAll has not already done so, we may
 		have put ourselves to sleep. */
 		if( xAlreadyYielded == pdFALSE )
- d36:	61 da       	rcall	.-2878   	; 0x1fa <vListRemove>
- d38:	ce 01       	movw	r24, r28
-		{
-			portYIELD_WITHIN_API();
- d3a:	53 dd       	rcall	.-1370   	; 0x7e2 <prvAddCurrentTaskToDelayedList>
- d3c:	6a df       	rcall	.-300    	; 0xc12 <xTaskResumeAll>
-		}
-	}
  d3e:	81 11       	cpse	r24, r1
  d40:	01 c0       	rjmp	.+2      	; 0xd44 <vTaskDelay+0x30>
+		{
+			portYIELD_WITHIN_API();
  d42:	9c dc       	rcall	.-1736   	; 0x67c <vPortYield>
  d44:	df 91       	pop	r29
+		}
+	}
  d46:	cf 91       	pop	r28
  d48:	08 95       	ret
 
 00000d4a <prvIdleTask>:
+ d4a:	0f 2e       	mov	r0, r31
 		/* ucTasksDeleted is used to prevent vTaskSuspendAll() being called
 		too often in the idle task. */
 		if( uxTasksDeleted > ( unsigned portBASE_TYPE ) 0U )
 		{
 			vTaskSuspendAll();
 				xListIsEmpty = listLIST_IS_EMPTY( &xTasksWaitingTermination );
- d4a:	0f 2e       	mov	r0, r31
  d4c:	f1 e2       	ldi	r31, 0x21	; 33
  d4e:	ef 2e       	mov	r14, r31
  d50:	f7 e0       	ldi	r31, 0x07	; 7
@@ -1967,74 +1973,74 @@ void vPortYieldFromTick( void )
 		if( uxTasksDeleted > ( unsigned portBASE_TYPE ) 0U )
  d5a:	80 91 20 07 	lds	r24, 0x0720	; 0x800720 <uxTasksDeleted>
  d5e:	88 23       	and	r24, r24
+ d60:	29 f1       	breq	.+74     	; 0xdac <prvIdleTask+0x62>
 		{
 			vTaskSuspendAll();
- d60:	29 f1       	breq	.+74     	; 0xdac <prvIdleTask+0x62>
-				xListIsEmpty = listLIST_IS_EMPTY( &xTasksWaitingTermination );
  d62:	90 de       	rcall	.-736    	; 0xa84 <vTaskSuspendAll>
-			xTaskResumeAll();
+				xListIsEmpty = listLIST_IS_EMPTY( &xTasksWaitingTermination );
  d64:	d7 01       	movw	r26, r14
+			xTaskResumeAll();
  d66:	1c 91       	ld	r17, X
+ d68:	54 df       	rcall	.-344    	; 0xc12 <xTaskResumeAll>
 
 			if( xListIsEmpty == pdFALSE )
- d68:	54 df       	rcall	.-344    	; 0xc12 <xTaskResumeAll>
  d6a:	11 23       	and	r17, r17
+ d6c:	f9 f0       	breq	.+62     	; 0xdac <prvIdleTask+0x62>
 			{
 				tskTCB *pxTCB;
 
 				taskENTER_CRITICAL();
- d6c:	f9 f0       	breq	.+62     	; 0xdac <prvIdleTask+0x62>
  d6e:	0f b6       	in	r0, 0x3f	; 63
  d70:	f8 94       	cli
+ d72:	0f 92       	push	r0
 				{
 					pxTCB = ( tskTCB * ) listGET_OWNER_OF_HEAD_ENTRY( ( ( xList * ) &xTasksWaitingTermination ) );
- d72:	0f 92       	push	r0
  d74:	d7 01       	movw	r26, r14
  d76:	15 96       	adiw	r26, 0x05	; 5
  d78:	ed 91       	ld	r30, X+
  d7a:	fc 91       	ld	r31, X
  d7c:	16 97       	sbiw	r26, 0x06	; 6
-					vListRemove( &( pxTCB->xGenericListItem ) );
  d7e:	06 81       	ldd	r16, Z+6	; 0x06
  d80:	17 81       	ldd	r17, Z+7	; 0x07
+					vListRemove( &( pxTCB->xGenericListItem ) );
  d82:	c8 01       	movw	r24, r16
-					--uxCurrentNumberOfTasks;
  d84:	02 96       	adiw	r24, 0x02	; 2
  d86:	39 da       	rcall	.-2958   	; 0x1fa <vListRemove>
+					--uxCurrentNumberOfTasks;
  d88:	80 91 1f 07 	lds	r24, 0x071F	; 0x80071f <uxCurrentNumberOfTasks>
  d8c:	81 50       	subi	r24, 0x01	; 1
-					--uxTasksDeleted;
  d8e:	80 93 1f 07 	sts	0x071F, r24	; 0x80071f <uxCurrentNumberOfTasks>
+					--uxTasksDeleted;
  d92:	80 91 20 07 	lds	r24, 0x0720	; 0x800720 <uxTasksDeleted>
  d96:	81 50       	subi	r24, 0x01	; 1
+ d98:	80 93 20 07 	sts	0x0720, r24	; 0x800720 <uxTasksDeleted>
 				}
 				taskEXIT_CRITICAL();
- d98:	80 93 20 07 	sts	0x0720, r24	; 0x800720 <uxTasksDeleted>
+ d9c:	0f 90       	pop	r0
+ d9e:	0f be       	out	0x3f, r0	; 63
 		want to allocate and clean RAM statically. */
 		portCLEAN_UP_TCB( pxTCB );
 
 		/* Free up the memory allocated by the scheduler for the task.  It is up to
 		the task to free any memory allocated at the application level. */
 		vPortFreeAligned( pxTCB->pxStack );
- d9c:	0f 90       	pop	r0
- d9e:	0f be       	out	0x3f, r0	; 63
-		vPortFree( pxTCB );
  da0:	f8 01       	movw	r30, r16
  da2:	87 89       	ldd	r24, Z+23	; 0x17
+ da4:	90 8d       	ldd	r25, Z+24	; 0x18
+		vPortFree( pxTCB );
+ da6:	b4 d9       	rcall	.-3224   	; 0x110 <vPortFree>
+ da8:	c8 01       	movw	r24, r16
 
 			A critical region is not required here as we are just reading from
 			the list, and an occasional incorrect value will not matter.  If
 			the ready list at the idle priority contains more than one task
 			then a task other than the idle task is ready to execute. */
 			if( listCURRENT_LIST_LENGTH( &( pxReadyTasksLists[ tskIDLE_PRIORITY ] ) ) > ( unsigned portBASE_TYPE ) 1 )
- da4:	90 8d       	ldd	r25, Z+24	; 0x18
- da6:	b4 d9       	rcall	.-3224   	; 0x110 <vPortFree>
- da8:	c8 01       	movw	r24, r16
-			{
-				taskYIELD();
  daa:	b2 d9       	rcall	.-3228   	; 0x110 <vPortFree>
  dac:	88 81       	ld	r24, Y
  dae:	82 30       	cpi	r24, 0x02	; 2
+			{
+				taskYIELD();
  db0:	a0 f2       	brcs	.-88     	; 0xd5a <prvIdleTask+0x10>
  db2:	64 dc       	rcall	.-1848   	; 0x67c <vPortYield>
  db4:	d2 cf       	rjmp	.-92     	; 0xd5a <prvIdleTask+0x10>
