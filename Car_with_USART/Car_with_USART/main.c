@@ -67,6 +67,10 @@ unsigned char max_servo = 0;
 unsigned char min_servo = 0;
 unsigned char servo_counter = 0;
 unsigned short steering = 0;
+unsigned char b_output = 0x00;
+
+// variables for lights
+unsigned char lights = 0; //0 = lights are currently off; 1 = lights are currently on
 
 
 //variables for data transmitted
@@ -193,6 +197,26 @@ void TRANSMISSION_Tick(){
 				left = 0;
 				max_servo = 0;
 			}
+	
+			bit_val_0 = GetBit(data_recieved,5);	// lights
+			
+			if(bit_val_0){
+				if(!lights){
+					lights = 1;
+					b_output = b_output & 0xEF;
+					b_output = b_output | 0x10;
+					PORTB = b_output;
+				}
+		
+			}
+			
+			else{
+				if(lights){
+					lights = 0;
+					b_output = b_output & 0xEF;
+					PORTB = b_output;
+				}
+			}
 			
 			break;
 			
@@ -235,85 +259,6 @@ void TRANSMISSIONSecPulse(unsigned portBASE_TYPE Priority){
 	
 
 //-------------------------------------------------- End Transmission Read SM --------------------------------------------------//
-/*
-//------------------------------------------------------ Start IR Read SM ------------------------------------------------------//
-
-
-void IR_Init(){
-	ir_state = ir_read;
-}
-
-void IR_Tick(){
-	//Actions
-	switch(ir_state){
-		case ir_read:
-		if(GetBit(~PINA,0)){
-			//going_forward = 0;
-			//throttle = 0;
-		}
-		
-		if(!GetBit(~PINA,0)){
-			going_forward = 1;
-		}
-	
-		if(GetBit(~PINA,1)){
-			going_reverse = 0;
-		}
-		
-		if(!GetBit(~PINA,1)){
-			going_reverse = 1;
-		}
-		
-		if(GetBit(~PINA,2)){
-			left = 0;
-		}
-		
-		if(!GetBit(~PINA,2)){
-			left = 1;
-		}
-		
-		if(GetBit(~PINA,3)){
-			right = 0;
-		}
-		
-		if(!GetBit(~PINA,3)){
-			right = 1;
-		}
-		
-		break;
-		
-		default:
-		break;
-	}
-	//Transitions
-	switch(ir_state){
-		case ir_read:
-		ir_state = ir_read;
-		break;
-		
-		default:
-		ir_state = ir_read;
-		break;
-	}
-}
-
-void IRSecTask()
-{
-	IR_Init();
-	for(;;)
-	{
-		IR_Tick();
-		vTaskDelay(1);
-	}
-}
-
-void IRSecPulse(unsigned portBASE_TYPE Priority)
-{
-	xTaskCreate(IRSecTask, (signed portCHAR *)"IRSecTask", configMINIMAL_STACK_SIZE, NULL, Priority, NULL );
-}
-
-*/
-//--------------------------------------------------------- End IR Read SM --------------------------------------------------------//
 
 //-------------------------------------------------- Start DC Motor SM (Forward) --------------------------------------------------//
 
@@ -341,9 +286,7 @@ void FORWARD_Tick(){
 				forward_state = forward_on_high;
 				low_counter = 3 - throttle;
 				pwm_counter = 0;
-				//PORTA = 0x01;
 				PORTC = 0x11;
-				//PORTD = PORTD | 0x10;
 			}
 		
 			else{
@@ -361,16 +304,12 @@ void FORWARD_Tick(){
 			else if(going_forward && !(pwm_counter < throttle)){
 				forward_state = forward_on_low;
 				pwm_counter = 0;
-				//PORTA = 0x00;
 				PORTC = 0x00;
-				//PORTD = PORTD & 0xCF;
 			}
 		
 			else{
 				forward_state = forward_off;
-				//PORTA = 0x00;
 				PORTC = 0x00;
-				//PORTD = PORTD & 0xCF;
 			
 			}
 			break;
@@ -384,16 +323,12 @@ void FORWARD_Tick(){
 			else if(going_forward && !(pwm_counter < low_counter)){
 				forward_state = forward_on_high;
 				pwm_counter = 0;
-				//PORTA = 0x01;
 				PORTC = 0x11;
-				//PORTD = PORTD | 0x10;
 			}
 			
 			else{
 				forward_state = forward_off;
-				//PORTA = 0x00;
 				PORTC = 0x00;
-				//PORTD = PORTD & 0xCF;
 			}
 			break;
 		
@@ -443,9 +378,7 @@ void REVERSE_Tick(){
 				reverse_state = reverse_on_high;
 				low_counter = 3 - reverse;
 				pwm_counter = 0;
-				//PORTA = 0x02;
 				PORTC = 0x22;
-				//PORTD = PORTD | 0x20;
 			}
 		
 			else{
@@ -462,16 +395,12 @@ void REVERSE_Tick(){
 			else if(going_reverse && !(pwm_counter < reverse)){
 				reverse_state = reverse_on_low;
 				pwm_counter = 0;
-				//PORTA = 0x00;
 				PORTC = 0x00;
-				//PORTD = PORTD & 0xCF;
 			}
 			
 			else{
 				reverse_state = reverse_off;
-				//PORTA = 0x00;
 				PORTC = 0x00;
-				//PORTD = PORTD & 0xCF;
 			}
 			break;
 			
@@ -484,16 +413,12 @@ void REVERSE_Tick(){
 			else if(going_reverse && !(pwm_counter < low_counter)){
 				reverse_state = reverse_on_high;
 				pwm_counter = 0;
-				//PORTA = 0x02;
 				PORTC = 0x22;
-				//PORTD = PORTD | 0x20;;
 			}
 		
 			else{
 				reverse_state = reverse_off;
-				//PORTA = 0x00;
 				PORTC = 0x00;
-				//PORTD = PORTD & 0xCF;
 			}
 			break;
 		
@@ -542,11 +467,14 @@ void SERVO_Tick(){
 			if(left || right){
 				servo_state = drive_high;
 				servo_counter = 0;
-				PORTB = 0x01;
+				b_output = b_output & 0xFE;
+				b_output = b_output | 0x01;
+				PORTB = b_output;
 			}
 		
 			else{
-				PORTB = 0x00;
+				b_output = b_output & 0xFE;
+				PORTB = b_output;
 				servo_state = servo_init;
 			}
 			break;
@@ -560,7 +488,8 @@ void SERVO_Tick(){
 			else{
 				left = 0;
 				right = 0;
-				PORTB = 0x00;
+				b_output = b_output & 0xFE;
+				PORTB = b_output;
 				servo_state = servo_init;
 			}
 			break;
@@ -587,19 +516,17 @@ void SERVOSecPulse(unsigned portBASE_TYPE Priority)
 	xTaskCreate(SERVOSecTask, (signed portCHAR *)"SERVOSecTask", configMINIMAL_STACK_SIZE, NULL, Priority, NULL );
 }
 
-
 //-------------------------------------------------- End ServoMotor SM --------------------------------------------------//
+
 int main(void)
 {
 	DDRA = 0x00; PORTA = 0xFF;
 	DDRB = 0xFF; PORTB = 0x00;
 	DDRC = 0xFF; PORTC = 0x00;
 	//DDRD = 0xFF; PORTD = 0x00;
-	//adc_init();
 	initUSART(0);
 	//Start Tasks
 	TRANSMISSIONSecPulse(1);
-	//IRSecPulse(10);
 	ForwardSecPulse(1);
 	ReverseSecPulse(1);
 	SERVOSecPulse(1);

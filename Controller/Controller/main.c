@@ -57,6 +57,9 @@ unsigned short joystick_value = 0;
 // variable for steering
 unsigned short steering = 0;
 
+// variable for lights
+unsigned char light = 0;
+
 unsigned char data_to_transmit = 0x00;
 //	7		6		5		4		3		2			1		0
 //	nothing	nothing	lights	left	right	direction	speed	speed
@@ -72,6 +75,7 @@ unsigned char data_to_transmit = 0x00;
 
 enum JOYState {joy_read} joy_state;
 enum STEERINGState {steering_read} steering_state;
+enum BUTTONState {button_off, button_on} button_state;
 enum TRANSMITState {wait_to_transmit, transmit_data} transmit_state;
 
 //-------------------------------------------------- Start Joystick SM --------------------------------------------------//
@@ -212,6 +216,95 @@ void STEERINGSecPulse(unsigned portBASE_TYPE Priority)
 
 //-------------------------------------------------- End Steering SM --------------------------------------------------//
 
+//-------------------------------------------------- Start Button SM --------------------------------------------------//
+void BUTTON_Init(){
+	button_state = button_off;
+}
+
+void BUTTON_Tick(){
+	//Transitions
+	switch(button_state){
+		case button_off:
+			if(GetBit(~PINB, 1)){
+				if(light){
+					light = 0;
+					data_to_transmit = data_to_transmit & 0xDF;
+				}
+				
+				else{
+					light = 1;
+					data_to_transmit = data_to_transmit & 0xDF;
+					data_to_transmit = data_to_transmit | 0x20;
+				}
+				
+				if(light){
+					PORTC = 0xFF;
+				}
+				
+				else{
+					PORTC = 0x00;
+				}
+				
+				button_state = button_on;
+			}
+			
+			else{
+				
+				button_state = button_off;
+			}
+			
+			break;
+		
+		case button_on:
+			if(GetBit(~PINB, 1)){
+				button_state = button_on;
+			}
+			
+			else{
+				
+				button_state = button_off;
+			}
+			
+			break;
+		
+		default:
+			button_state = button_off;
+			break;
+	}
+	
+	//Actions
+	switch(button_state){
+		case button_off:
+			break;
+		
+		case button_on:
+			break;
+		
+		default:
+			break;
+	}
+	
+}
+
+
+
+void BUTTONSecTask()
+{
+	BUTTON_Init();
+	for(;;)
+	{
+		BUTTON_Tick();
+		vTaskDelay(15);
+	}
+}
+
+void BUTTONSecPulse(unsigned portBASE_TYPE Priority)
+{
+	xTaskCreate(BUTTONSecTask, (signed portCHAR *)"BUTTONSecTask", configMINIMAL_STACK_SIZE, NULL, Priority, NULL );
+}
+
+//-------------------------------------------------- End Button SM --------------------------------------------------//
+
 //-------------------------------------------------- Start Transmission SM --------------------------------------------------//
 
 void TRANSMIT_Init(){
@@ -280,14 +373,15 @@ void TRANSMITSecPulse(unsigned portBASE_TYPE Priority){
 int main(void)
 {
 	DDRA = 0x00; PORTA = 0xFF;
-	//DDRB = 0xFF; PORTB = 0x00;
-	//DDRC = 0xFF; PORTC = 0x00;
+	DDRB = 0x00; PORTB = 0xFF;
+	DDRC = 0xFF; PORTC = 0x00;
 	//DDRD = 0xFF; PORTD = 0x00;
 	adc_init();
 	initUSART(0);
 	//Start Tasks
 	JOYSecPulse(1);
 	STEERINGSecPulse(1);
+	BUTTONSecPulse(1);
 	TRANSMITSecPulse(1);
 	//RunSchedular
 	vTaskStartScheduler();
